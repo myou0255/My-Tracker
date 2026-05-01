@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام الصمود</title>
+    <title>نظام الصمود الاحترافي | مذكرات ذكية</title>
     <style>
         :root {
             --bg: #0f172a;
@@ -75,7 +75,6 @@
         .edit-btn { background: var(--primary); color: white; }
         .delete-btn { background: var(--danger); color: white; }
 
-        /* تنسيق قسم النسخ الاحتياطي */
         .backup-section {
             margin-top: 20px; padding-top: 15px; border-top: 1px dashed rgba(255,255,255,0.2);
         }
@@ -84,7 +83,6 @@
 <body>
 
 <div class="container">
-    <!-- العدادات -->
     <div class="card">
         <div style="font-size: 0.8rem; opacity: 0.7;">دورة الـ 24 ساعة</div>
         <div class="cycle-timer" id="countdown">24:00:00</div>
@@ -99,7 +97,6 @@
         </div>
     </div>
 
-    <!-- الإعدادات -->
     <div class="card">
         <div style="display:flex; gap:10px; margin-bottom:10px;">
             <input type="date" id="startDateInput">
@@ -114,7 +111,6 @@
         
         <button class="btn" style="background:#1e293b; color:var(--danger); font-size:0.7rem; margin-top:20px;" onclick="resetAll()">تصفير شامل (حذف المذكرات أيضاً)</button>
 
-        <!-- قسم النسخ الاحتياطي -->
         <div class="backup-section">
             <p style="font-size: 0.7rem; opacity: 0.6; margin-bottom: 10px;">إدارة البيانات (للحماية من الحذف)</p>
             <div style="display: flex; gap: 10px;">
@@ -124,7 +120,6 @@
         </div>
     </div>
 
-    <!-- قائمة اليوميات -->
     <div id="diaryList"></div>
 </div>
 
@@ -140,28 +135,21 @@
     function startJourney() {
         data.start = document.getElementById('startDateInput').value;
         data.end = document.getElementById('endDateInput').value;
-        data.startTimeMs = data.startTimeMs || new Date().getTime();
+        data.startTimeMs = new Date().getTime(); // إعادة ضبط نقطة بداية العد التنازلي
         data.isRunning = true;
         save();
         update();
     }
 
     function restartJourneyOnly() {
-        if(confirm("هل تريد بدء رحلة جديدة؟ سيتم تصفير عداد الأيام والزلات والتواريخ، ولكن ستظل مذكراتك محفوظة كما هي.")) {
+        if(confirm("هل تريد بدء رحلة جديدة؟ سيتم تصفير عداد الأيام والزلات والتواريخ، ولكن ستظل مذكراتك محفوظة.")) {
             data.relapses = 0;
             data.start = "";
             data.end = "";
             data.startTimeMs = null;
             data.isRunning = false;
-            
-            document.getElementById('startDateInput').value = "";
-            document.getElementById('endDateInput').value = "";
-            document.getElementById('daysDisplay').innerText = "0";
-            document.getElementById('countdown').innerText = "24:00:00";
-            document.getElementById('daysRemainingDisplay').innerText = "--";
-            
             save();
-            alert("تم تصفير العدادات. حدد تواريخك الجديدة وابدأ من جديد!");
+            location.reload();
         }
     }
 
@@ -169,17 +157,24 @@
         if (!data.isRunning || !data.startTimeMs) return;
         const now = new Date().getTime();
         
+        // الأيام من تاريخ البداية
         const start = new Date(data.start).getTime();
         const diffStart = now - start;
         document.getElementById('daysDisplay').innerText = Math.max(0, Math.floor(diffStart / 86400000));
 
-        const msPassed = now - data.startTimeMs;
-        const remaining = (24 * 3600000) - (msPassed % 3600000);
-        const h = Math.floor(remaining / 3600000);
-        const m = Math.floor((remaining / 60000) % 60);
-        const s = Math.floor((remaining / 1000) % 60);
-        document.getElementById('countdown').innerText = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        // العداد التنازلي 24 ساعة (الإصلاح الجديد)
+        const msIn24h = 24 * 60 * 60 * 1000;
+        const msPassedSinceClick = now - data.startTimeMs;
+        const msRemainingInCycle = msIn24h - (msPassedSinceClick % msIn24h);
+        
+        const h = Math.floor(msRemainingInCycle / 3600000);
+        const m = Math.floor((msRemainingInCycle % 3600000) / 60000);
+        const s = Math.floor((msRemainingInCycle % 60000) / 1000);
 
+        document.getElementById('countdown').innerText = 
+            `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+
+        // المتبقي للهدف
         const end = new Date(data.end).getTime();
         const diffEnd = Math.ceil((end - now) / 86400000);
         document.getElementById('daysRemainingDisplay').innerText = diffEnd > 0 ? diffEnd : "🎉";
@@ -232,13 +227,12 @@
     function save() { localStorage.setItem('recoveryFullSet', JSON.stringify(data)); }
     
     function resetAll() {
-        if(confirm("تحذير: هذا الخيار سيحذف كل شيء بما في ذلك مذكراتك التاريخية. هل أنت متأكد؟")) {
+        if(confirm("سيتم حذف كل شيء نهائياً. هل أنت متأكد؟")) {
             localStorage.clear();
             location.reload();
         }
     }
 
-    // وظائف النسخ الاحتياطي
     function exportData() {
         const backup = {
             stats: JSON.parse(localStorage.getItem('recoveryFullSet')),
@@ -260,19 +254,10 @@
             const file = e.target.files[0];
             const reader = new FileReader();
             reader.onload = readerEvent => {
-                try {
-                    const content = JSON.parse(readerEvent.target.result);
-                    if(content.stats && content.diaries) {
-                        localStorage.setItem('recoveryFullSet', JSON.stringify(content.stats));
-                        localStorage.setItem('diariesFullSet', JSON.stringify(content.diaries));
-                        alert("تم استعادة كافة البيانات بنجاح!");
-                        location.reload();
-                    } else {
-                        alert("الملف غير صالح.");
-                    }
-                } catch(err) {
-                    alert("حدث خطأ أثناء قراءة الملف.");
-                }
+                const content = JSON.parse(readerEvent.target.result);
+                localStorage.setItem('recoveryFullSet', JSON.stringify(content.stats));
+                localStorage.setItem('diariesFullSet', JSON.stringify(content.diaries));
+                location.reload();
             }
             reader.readAsText(file);
         }
@@ -283,6 +268,5 @@
     renderDiaries();
     if(data.isRunning) update();
 </script>
-
 </body>
 </html>
