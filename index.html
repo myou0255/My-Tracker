@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام الصمود الاحترافي | مذكرات ذكية</title>
+    <title>نظام الصمود السحابي | مذكرات ذكية</title>
     <style>
         :root {
             --bg: #0f172a;
@@ -74,10 +74,6 @@
         }
         .edit-btn { background: var(--primary); color: white; }
         .delete-btn { background: var(--danger); color: white; }
-
-        .backup-section {
-            margin-top: 20px; padding-top: 15px; border-top: 1px dashed rgba(255,255,255,0.2);
-        }
     </style>
 </head>
 <body>
@@ -102,69 +98,69 @@
             <input type="date" id="startDateInput">
             <input type="date" id="endDateInput">
         </div>
-        <button class="btn btn-start" onclick="startJourney()">🚀 بدء / تحديث الرحلة</button>
-        <button class="btn btn-restart-soft" onclick="restartJourneyOnly()">🔄 رحلة جديدة (تصفير الوقت فقط)</button>
+        <button class="btn btn-start" id="startBtn">🚀 بدء / تحديث الرحلة</button>
+        <button class="btn btn-restart-soft" id="restartBtn">🔄 رحلة جديدة (تصفير شامل)</button>
         
         <textarea id="diaryInput" placeholder="اكتب تدوينة اليوم..."></textarea>
-        <button class="btn" style="background:var(--accent); color:white;" onclick="saveDiary()">حفظ التدوينة</button>
-        <button class="btn btn-relapse" onclick="addRelapse()">تسجيل زلة</button>
-        
-        <button class="btn" style="background:#1e293b; color:var(--danger); font-size:0.7rem; margin-top:20px;" onclick="resetAll()">تصفير شامل (حذف المذكرات أيضاً)</button>
-
-        <div class="backup-section">
-            <p style="font-size: 0.7rem; opacity: 0.6; margin-bottom: 10px;">إدارة البيانات (للحماية من الحذف)</p>
-            <div style="display: flex; gap: 10px;">
-                <button class="btn" style="background:#059669; color:white; font-size:0.75rem; padding: 10px;" onclick="exportData()">📥 نسخة احتياطية</button>
-                <button class="btn" style="background:#4b5563; color:white; font-size:0.75rem; padding: 10px;" onclick="importData()">📤 استعادة البيانات</button>
-            </div>
-        </div>
+        <button class="btn" style="background:var(--accent); color:white;" id="saveDiaryBtn">حفظ التدوينة</button>
+        <button class="btn btn-relapse" id="relapseBtn">تسجيل زلة</button>
     </div>
 
     <div id="diaryList"></div>
 </div>
 
-<script>
-    let data = JSON.parse(localStorage.getItem('recoveryFullSet')) || {
-        relapses: 0, start: "", end: "", startTimeMs: null, isRunning: false
+<script type="module">
+    // 1. استيراد المكتبات
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    // 2. إعدادات Firebase الخاصة بك
+    const firebaseConfig = {
+        apiKey: "AIzaSyBxuH8sT_45q2DEZIL554Q5xr3c12ztywc",
+        authDomain: "my-trck.firebaseapp.com",
+        databaseURL: "https://my-trck-default-rtdb.firebaseio.com",
+        projectId: "my-trck",
+        storageBucket: "my-trck.firebasestorage.app",
+        messagingSenderId: "221849606859",
+        appId: "1:221849606859:web:29f1eeb7728b027107594e"
     };
-    let diaries = JSON.parse(localStorage.getItem('diariesFullSet')) || [];
 
-    if(data.start) document.getElementById('startDateInput').value = data.start;
-    if(data.end) document.getElementById('endDateInput').value = data.end;
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
 
-    function startJourney() {
-        data.start = document.getElementById('startDateInput').value;
-        data.end = document.getElementById('endDateInput').value;
-        data.startTimeMs = new Date().getTime(); // إعادة ضبط نقطة بداية العد التنازلي
-        data.isRunning = true;
-        save();
-        update();
-    }
+    const dataRef = ref(db, 'recoveryData');
+    const diariesRef = ref(db, 'diaries');
 
-    function restartJourneyOnly() {
-        if(confirm("هل تريد بدء رحلة جديدة؟ سيتم تصفير عداد الأيام والزلات والتواريخ، ولكن ستظل مذكراتك محفوظة.")) {
-            data.relapses = 0;
-            data.start = "";
-            data.end = "";
-            data.startTimeMs = null;
-            data.isRunning = false;
-            save();
-            location.reload();
+    let localData = { relapses: 0, start: "", end: "", startTimeMs: null, isRunning: false };
+    let localDiaries = [];
+
+    // مزامنة البيانات من السحاب
+    onValue(dataRef, (snapshot) => {
+        const cloudData = snapshot.val();
+        if (cloudData) {
+            localData = cloudData;
+            document.getElementById('startDateInput').value = localData.start || "";
+            document.getElementById('endDateInput').value = localData.end || "";
+            updateUI();
         }
-    }
+    });
 
-    function update() {
-        if (!data.isRunning || !data.startTimeMs) return;
+    onValue(diariesRef, (snapshot) => {
+        const cloudDiaries = snapshot.val();
+        localDiaries = cloudDiaries ? Object.values(cloudDiaries).reverse() : [];
+        renderDiaries();
+    });
+
+    function updateUI() {
+        if (!localData.isRunning || !localData.startTimeMs) return;
         const now = new Date().getTime();
         
-        // الأيام من تاريخ البداية
-        const start = new Date(data.start).getTime();
+        const start = new Date(localData.start).getTime();
         const diffStart = now - start;
         document.getElementById('daysDisplay').innerText = Math.max(0, Math.floor(diffStart / 86400000));
 
-        // العداد التنازلي 24 ساعة (الإصلاح الجديد)
         const msIn24h = 24 * 60 * 60 * 1000;
-        const msPassedSinceClick = now - data.startTimeMs;
+        const msPassedSinceClick = now - localData.startTimeMs;
         const msRemainingInCycle = msIn24h - (msPassedSinceClick % msIn24h);
         
         const h = Math.floor(msRemainingInCycle / 3600000);
@@ -174,99 +170,59 @@
         document.getElementById('countdown').innerText = 
             `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 
-        // المتبقي للهدف
-        const end = new Date(data.end).getTime();
+        const end = new Date(localData.end).getTime();
         const diffEnd = Math.ceil((end - now) / 86400000);
         document.getElementById('daysRemainingDisplay').innerText = diffEnd > 0 ? diffEnd : "🎉";
-        document.getElementById('relapseDisplay').innerText = data.relapses;
+        document.getElementById('relapseDisplay').innerText = localData.relapses;
     }
 
-    function saveDiary() {
+    document.getElementById('startBtn').onclick = () => {
+        localData.start = document.getElementById('startDateInput').value;
+        localData.end = document.getElementById('endDateInput').value;
+        localData.startTimeMs = new Date().getTime();
+        localData.isRunning = true;
+        set(dataRef, localData);
+    };
+
+    document.getElementById('relapseBtn').onclick = () => {
+        localData.relapses++;
+        set(dataRef, localData);
+    };
+
+    document.getElementById('saveDiaryBtn').onclick = () => {
         const text = document.getElementById('diaryInput').value.trim();
         if(!text) return;
         const id = Date.now();
-        diaries.unshift({ id, date: new Date().toLocaleString('ar-SA'), content: text });
-        localStorage.setItem('diariesFullSet', JSON.stringify(diaries));
+        const newDiary = { id, date: new Date().toLocaleString('ar-SA'), content: text };
+        set(ref(db, 'diaries/' + id), newDiary);
         document.getElementById('diaryInput').value = "";
-        renderDiaries();
-    }
+    };
 
-    function deleteDiary(id) {
-        if(confirm("هل تريد حذف هذه التدوينة؟")) {
-            diaries = diaries.filter(d => d.id !== id);
-            localStorage.setItem('diariesFullSet', JSON.stringify(diaries));
-            renderDiaries();
+    document.getElementById('restartBtn').onclick = () => {
+        if(confirm("تصفير العداد والمذكرات؟")) {
+            set(dataRef, { relapses: 0, start: "", end: "", startTimeMs: null, isRunning: false });
+            set(diariesRef, null);
         }
-    }
+    };
 
-    function editDiary(id) {
-        const item = diaries.find(d => d.id === id);
-        const newText = prompt("تعديل التدوينة:", item.content);
-        if (newText !== null && newText.trim() !== "") {
-            item.content = newText.trim();
-            localStorage.setItem('diariesFullSet', JSON.stringify(diaries));
-            renderDiaries();
-        }
-    }
+    window.deleteDiary = (id) => {
+        if(confirm("حذف؟")) set(ref(db, 'diaries/' + id), null);
+    };
 
     function renderDiaries() {
         const list = document.getElementById('diaryList');
-        list.innerHTML = diaries.map(d => `
+        list.innerHTML = localDiaries.map(d => `
             <div class="diary-item">
                 <small style="color:var(--primary)">${d.date}</small>
                 <div style="margin-top:8px; line-height:1.6;">${d.content}</div>
                 <div class="diary-actions">
-                    <button class="action-btn edit-btn" onclick="editDiary(${d.id})">تعديل</button>
                     <button class="action-btn delete-btn" onclick="deleteDiary(${d.id})">حذف</button>
                 </div>
             </div>
         `).join('');
     }
 
-    function addRelapse() { data.relapses++; save(); update(); }
-    function save() { localStorage.setItem('recoveryFullSet', JSON.stringify(data)); }
-    
-    function resetAll() {
-        if(confirm("سيتم حذف كل شيء نهائياً. هل أنت متأكد؟")) {
-            localStorage.clear();
-            location.reload();
-        }
-    }
-
-    function exportData() {
-        const backup = {
-            stats: JSON.parse(localStorage.getItem('recoveryFullSet')),
-            diaries: JSON.parse(localStorage.getItem('diariesFullSet'))
-        };
-        const blob = new Blob([JSON.stringify(backup)], {type: 'application/json'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `صمود_احتياطي_${new Date().toLocaleDateString('en-GB')}.json`;
-        a.click();
-    }
-
-    function importData() {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.onchange = e => {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = readerEvent => {
-                const content = JSON.parse(readerEvent.target.result);
-                localStorage.setItem('recoveryFullSet', JSON.stringify(content.stats));
-                localStorage.setItem('diariesFullSet', JSON.stringify(content.diaries));
-                location.reload();
-            }
-            reader.readAsText(file);
-        }
-        input.click();
-    }
-
-    setInterval(update, 1000);
-    renderDiaries();
-    if(data.isRunning) update();
+    setInterval(updateUI, 1000);
 </script>
 </body>
 </html>
