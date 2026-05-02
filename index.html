@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام الصمود الاحترافي | مذكرات ذكية</title>
+    <title>نظام الصمود الاحترافي | النسخة الخاصة</title>
     <style>
         :root {
             --bg: #0f172a;
@@ -16,7 +16,7 @@
         }
 
         body {
-            font-family: 'Segoe UI', sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--bg);
             color: var(--text);
             margin: 0;
@@ -59,9 +59,18 @@
         .btn-relapse { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
         .btn-restart-soft { background: #334155; color: #cbd5e1; border: 1px solid #475569; font-size: 0.85rem; }
         
+        /* تنسيق زر المذكرات المخفية */
+        .toggle-diary-btn {
+            width: 100%; background: #1e293b; color: var(--primary); border: 1px solid var(--primary);
+            padding: 12px; border-radius: 12px; cursor: pointer; font-weight: bold;
+            display: flex; justify-content: space-between; align-items: center; margin-top: 10px;
+        }
+
+        #diaryList { display: none; margin-top: 15px; }
+
         .diary-item {
             text-align: right; background: rgba(255,255,255,0.03);
-            padding: 15px; border-radius: 12px; margin-top: 15px;
+            padding: 15px; border-radius: 12px; margin-top: 10px;
             border-right: 4px solid var(--primary); position: relative;
         }
 
@@ -103,24 +112,31 @@
             <input type="date" id="endDateInput">
         </div>
         <button class="btn btn-start" onclick="startJourney()">🚀 بدء / تحديث الرحلة</button>
-        <button class="btn btn-restart-soft" onclick="restartJourneyOnly()">🔄 رحلة جديدة (تصفير الوقت فقط)</button>
+        <button class="btn btn-restart-soft" onclick="restartJourneyOnly()">🔄 رحلة جديدة (تصفير الأرقام)</button>
         
         <textarea id="diaryInput" placeholder="اكتب تدوينة اليوم..."></textarea>
         <button class="btn" style="background:var(--accent); color:white;" onclick="saveDiary()">حفظ التدوينة</button>
         <button class="btn btn-relapse" onclick="addRelapse()">تسجيل زلة</button>
+
+        <!-- الزر الجديد للمذكرات -->
+        <button class="toggle-diary-btn" onclick="toggleDiaries()">
+            <span>📚 استعراض المذكرات السابقة</span>
+            <span id="toggleIcon">▼</span>
+        </button>
+
+        <!-- قائمة المذكرات المخفية -->
+        <div id="diaryList"></div>
         
-        <button class="btn" style="background:#1e293b; color:var(--danger); font-size:0.7rem; margin-top:20px;" onclick="resetAll()">تصفير شامل (حذف المذكرات أيضاً)</button>
+        <button class="btn" style="background:#1e293b; color:var(--danger); font-size:0.7rem; margin-top:20px;" onclick="resetAll()">تصفير شامل (حذف كل شيء)</button>
 
         <div class="backup-section">
-            <p style="font-size: 0.7rem; opacity: 0.6; margin-bottom: 10px;">إدارة البيانات (للحماية من الحذف)</p>
+            <p style="font-size: 0.7rem; opacity: 0.6; margin-bottom: 10px;">إدارة البيانات للنسخ الاحتياطي</p>
             <div style="display: flex; gap: 10px;">
-                <button class="btn" style="background:#059669; color:white; font-size:0.75rem; padding: 10px;" onclick="exportData()">📥 نسخة احتياطية</button>
-                <button class="btn" style="background:#4b5563; color:white; font-size:0.75rem; padding: 10px;" onclick="importData()">📤 استعادة البيانات</button>
+                <button class="btn" style="background:#059669; color:white; font-size:0.75rem; padding: 10px;" onclick="exportData()">📥 تصدير ملف</button>
+                <button class="btn" style="background:#4b5563; color:white; font-size:0.75rem; padding: 10px;" onclick="importData()">📤 استعادة ملف</button>
             </div>
         </div>
     </div>
-
-    <div id="diaryList"></div>
 </div>
 
 <script>
@@ -135,34 +151,32 @@
     function startJourney() {
         data.start = document.getElementById('startDateInput').value;
         data.end = document.getElementById('endDateInput').value;
-        data.startTimeMs = new Date().getTime(); // إعادة ضبط نقطة بداية العد التنازلي
+        data.startTimeMs = new Date().getTime();
         data.isRunning = true;
         save();
         update();
     }
 
-    function restartJourneyOnly() {
-        if(confirm("هل تريد بدء رحلة جديدة؟ سيتم تصفير عداد الأيام والزلات والتواريخ، ولكن ستظل مذكراتك محفوظة.")) {
-            data.relapses = 0;
-            data.start = "";
-            data.end = "";
-            data.startTimeMs = null;
-            data.isRunning = false;
-            save();
-            location.reload();
+    function toggleDiaries() {
+        const list = document.getElementById('diaryList');
+        const icon = document.getElementById('toggleIcon');
+        if (list.style.display === "none" || list.style.display === "") {
+            list.style.display = "block";
+            icon.innerText = "▲";
+            renderDiaries();
+        } else {
+            list.style.display = "none";
+            icon.innerText = "▼";
         }
     }
 
     function update() {
         if (!data.isRunning || !data.startTimeMs) return;
         const now = new Date().getTime();
-        
-        // الأيام من تاريخ البداية
         const start = new Date(data.start).getTime();
         const diffStart = now - start;
         document.getElementById('daysDisplay').innerText = Math.max(0, Math.floor(diffStart / 86400000));
 
-        // العداد التنازلي 24 ساعة (الإصلاح الجديد)
         const msIn24h = 24 * 60 * 60 * 1000;
         const msPassedSinceClick = now - data.startTimeMs;
         const msRemainingInCycle = msIn24h - (msPassedSinceClick % msIn24h);
@@ -174,7 +188,6 @@
         document.getElementById('countdown').innerText = 
             `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 
-        // المتبقي للهدف
         const end = new Date(data.end).getTime();
         const diffEnd = Math.ceil((end - now) / 86400000);
         document.getElementById('daysRemainingDisplay').innerText = diffEnd > 0 ? diffEnd : "🎉";
@@ -188,7 +201,29 @@
         diaries.unshift({ id, date: new Date().toLocaleString('ar-SA'), content: text });
         localStorage.setItem('diariesFullSet', JSON.stringify(diaries));
         document.getElementById('diaryInput').value = "";
+        
+        // فتح المذكرات تلقائياً عند إضافة تدوينة جديدة
+        document.getElementById('diaryList').style.display = "block";
+        document.getElementById('toggleIcon').innerText = "▲";
         renderDiaries();
+    }
+
+    function renderDiaries() {
+        const list = document.getElementById('diaryList');
+        if (diaries.length === 0) {
+            list.innerHTML = "<p style='font-size:0.8rem; opacity:0.5;'>لا توجد مذكرات محفوظة بعد.</p>";
+            return;
+        }
+        list.innerHTML = diaries.map(d => `
+            <div class="diary-item">
+                <small style="color:var(--primary)">${d.date}</small>
+                <div style="margin-top:8px; line-height:1.6; font-size:0.95rem;">${d.content}</div>
+                <div class="diary-actions">
+                    <button class="action-btn edit-btn" onclick="editDiary(${d.id})">تعديل</button>
+                    <button class="action-btn delete-btn" onclick="deleteDiary(${d.id})">حذف</button>
+                </div>
+            </div>
+        `).join('');
     }
 
     function deleteDiary(id) {
@@ -209,47 +244,35 @@
         }
     }
 
-    function renderDiaries() {
-        const list = document.getElementById('diaryList');
-        list.innerHTML = diaries.map(d => `
-            <div class="diary-item">
-                <small style="color:var(--primary)">${d.date}</small>
-                <div style="margin-top:8px; line-height:1.6;">${d.content}</div>
-                <div class="diary-actions">
-                    <button class="action-btn edit-btn" onclick="editDiary(${d.id})">تعديل</button>
-                    <button class="action-btn delete-btn" onclick="deleteDiary(${d.id})">حذف</button>
-                </div>
-            </div>
-        `).join('');
-    }
-
     function addRelapse() { data.relapses++; save(); update(); }
     function save() { localStorage.setItem('recoveryFullSet', JSON.stringify(data)); }
     
+    function restartJourneyOnly() {
+        if(confirm("سيتم تصفير الأيام والزلات فقط. المذكرات ستبقى محفوظة. استمرار؟")) {
+            data.relapses = 0; data.start = ""; data.end = ""; data.startTimeMs = null; data.isRunning = false;
+            save(); location.reload();
+        }
+    }
+
     function resetAll() {
-        if(confirm("سيتم حذف كل شيء نهائياً. هل أنت متأكد؟")) {
-            localStorage.clear();
-            location.reload();
+        if(confirm("سيتم حذف كل شيء نهائياً (بما في ذلك المذكرات). استمرار؟")) {
+            localStorage.clear(); location.reload();
         }
     }
 
     function exportData() {
-        const backup = {
-            stats: JSON.parse(localStorage.getItem('recoveryFullSet')),
-            diaries: JSON.parse(localStorage.getItem('diariesFullSet'))
-        };
+        const backup = { stats: data, diaries: diaries };
         const blob = new Blob([JSON.stringify(backup)], {type: 'application/json'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `صمود_احتياطي_${new Date().toLocaleDateString('en-GB')}.json`;
+        a.download = `recovery_backup.json`;
         a.click();
     }
 
     function importData() {
         const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
+        input.type = 'file'; input.accept = '.json';
         input.onchange = e => {
             const file = e.target.files[0];
             const reader = new FileReader();
@@ -265,7 +288,6 @@
     }
 
     setInterval(update, 1000);
-    renderDiaries();
     if(data.isRunning) update();
 </script>
 </body>
