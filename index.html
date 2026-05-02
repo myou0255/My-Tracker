@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام الصمود الاحترافي | النسخة الخاصة</title>
+    <title>النهوض</title>
     <style>
         :root {
             --bg: #0f172a;
@@ -59,7 +59,6 @@
         .btn-relapse { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
         .btn-restart-soft { background: #334155; color: #cbd5e1; border: 1px solid #475569; font-size: 0.85rem; }
         
-        /* تنسيق زر المذكرات المخفية */
         .toggle-diary-btn {
             width: 100%; background: #1e293b; color: var(--primary); border: 1px solid var(--primary);
             padding: 12px; border-radius: 12px; cursor: pointer; font-weight: bold;
@@ -93,15 +92,15 @@
 
 <div class="container">
     <div class="card">
-        <div style="font-size: 0.8rem; opacity: 0.7;">دورة الـ 24 ساعة</div>
+        <div style="font-size: 0.8rem; opacity: 0.7;">الوقت</div>
         <div class="cycle-timer" id="countdown">24:00:00</div>
     </div>
 
     <div class="card">
-        <div style="font-size: 0.8rem; opacity: 0.7;">أيام الصمود</div>
+        <div style="font-size: 0.8rem; opacity: 0.7;">ايام الصمود</div>
         <div class="main-days" id="daysDisplay">0</div>
         <div class="grid-stats">
-            <div><small>المتبقي للهدف</small><br><b id="daysRemainingDisplay">--</b></div>
+            <div><small>الايام المتبقية</small><br><b id="daysRemainingDisplay">--</b></div>
             <div><small>الزلات</small><br><b id="relapseDisplay" style="color:var(--danger)">0</b></div>
         </div>
     </div>
@@ -111,20 +110,18 @@
             <input type="date" id="startDateInput">
             <input type="date" id="endDateInput">
         </div>
-        <button class="btn btn-start" onclick="startJourney()">🚀 بدء / تحديث الرحلة</button>
+        <button class="btn btn-start" onclick="startJourney()">🚀 بدء الرحلة</button>
         <button class="btn btn-restart-soft" onclick="restartJourneyOnly()">🔄 رحلة جديدة (تصفير الأرقام)</button>
         
         <textarea id="diaryInput" placeholder="اكتب تدوينة اليوم..."></textarea>
         <button class="btn" style="background:var(--accent); color:white;" onclick="saveDiary()">حفظ التدوينة</button>
         <button class="btn btn-relapse" onclick="addRelapse()">تسجيل زلة</button>
 
-        <!-- الزر الجديد للمذكرات -->
         <button class="toggle-diary-btn" onclick="toggleDiaries()">
             <span>📚 استعراض المذكرات السابقة</span>
             <span id="toggleIcon">▼</span>
         </button>
 
-        <!-- قائمة المذكرات المخفية -->
         <div id="diaryList"></div>
         
         <button class="btn" style="background:#1e293b; color:var(--danger); font-size:0.7rem; margin-top:20px;" onclick="resetAll()">تصفير شامل (حذف كل شيء)</button>
@@ -145,42 +142,52 @@
     };
     let diaries = JSON.parse(localStorage.getItem('diariesFullSet')) || [];
 
+    const CYCLE_MS = 86400000; // دورة 10 ثوانٍ
+    const DAY_MS = 86400000;
+
     if(data.start) document.getElementById('startDateInput').value = data.start;
     if(data.end) document.getElementById('endDateInput').value = data.end;
 
     function startJourney() {
         data.start = document.getElementById('startDateInput').value;
         data.end = document.getElementById('endDateInput').value;
+        if(!data.start || !data.end) { alert("يرجى تحديد التواريخ!"); return; }
         data.startTimeMs = new Date().getTime();
         data.isRunning = true;
         save();
         update();
     }
 
-    function toggleDiaries() {
-        const list = document.getElementById('diaryList');
-        const icon = document.getElementById('toggleIcon');
-        if (list.style.display === "none" || list.style.display === "") {
-            list.style.display = "block";
-            icon.innerText = "▲";
-            renderDiaries();
-        } else {
-            list.style.display = "none";
-            icon.innerText = "▼";
-        }
-    }
-
     function update() {
         if (!data.isRunning || !data.startTimeMs) return;
-        const now = new Date().getTime();
-        const start = new Date(data.start).getTime();
-        const diffStart = now - start;
-        document.getElementById('daysDisplay').innerText = Math.max(0, Math.floor(diffStart / 86400000));
-
-        const msIn24h = 24 * 60 * 60 * 1000;
-        const msPassedSinceClick = now - data.startTimeMs;
-        const msRemainingInCycle = msIn24h - (msPassedSinceClick % msIn24h);
         
+        const now = new Date().getTime();
+        const startMs = new Date(data.start).getTime();
+        const endMs = new Date(data.end).getTime();
+
+        // 1. حساب إجمالي الأيام كهدف (قيمة ثابتة للبداية)
+        const totalTargetDays = Math.ceil((endMs - startMs) / DAY_MS);
+
+        // 2. حساب المنقضي: الدورات المكتملة منذ الضغط على زر البدء
+        const msPassedSinceClick = now - data.startTimeMs;
+        const cyclesPassed = Math.floor(msPassedSinceClick / CYCLE_MS);
+        document.getElementById('daysDisplay').innerText = cyclesPassed;
+
+        // 3. حساب المتبقي (علاقة عكسية): الهدف الكلي ناقص المنقضي
+        const currentRemaining = Math.max(0, totalTargetDays - cyclesPassed);
+        document.getElementById('daysRemainingDisplay').innerText = currentRemaining;
+
+        // 4. شرط الإيقاف: إذا وصل المتبقي للصفر
+        if (currentRemaining <= 0) {
+            data.isRunning = false;
+            document.getElementById('countdown').innerText = "00:00:00";
+            document.getElementById('daysRemainingDisplay').innerText = "🎉";
+            save();
+            return;
+        }
+
+        // التعديل: تحديث عداد الدورة ليدعم الساعات والدقائق والثواني (24 ساعة)
+        const msRemainingInCycle = CYCLE_MS - (msPassedSinceClick % CYCLE_MS);
         const h = Math.floor(msRemainingInCycle / 3600000);
         const m = Math.floor((msRemainingInCycle % 3600000) / 60000);
         const s = Math.floor((msRemainingInCycle % 60000) / 1000);
@@ -188,21 +195,26 @@
         document.getElementById('countdown').innerText = 
             `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 
-        const end = new Date(data.end).getTime();
-        const diffEnd = Math.ceil((end - now) / 86400000);
-        document.getElementById('daysRemainingDisplay').innerText = diffEnd > 0 ? diffEnd : "🎉";
         document.getElementById('relapseDisplay').innerText = data.relapses;
+    }
+
+    // بقية الدوال دون أي تغيير
+    function toggleDiaries() {
+        const list = document.getElementById('diaryList');
+        const icon = document.getElementById('toggleIcon');
+        if (list.style.display === "none" || list.style.display === "") {
+            list.style.display = "block"; icon.innerText = "▲"; renderDiaries();
+        } else {
+            list.style.display = "none"; icon.innerText = "▼";
+        }
     }
 
     function saveDiary() {
         const text = document.getElementById('diaryInput').value.trim();
         if(!text) return;
-        const id = Date.now();
-        diaries.unshift({ id, date: new Date().toLocaleString('ar-SA'), content: text });
+        diaries.unshift({ id: Date.now(), date: new Date().toLocaleString('ar-SA'), content: text });
         localStorage.setItem('diariesFullSet', JSON.stringify(diaries));
         document.getElementById('diaryInput').value = "";
-        
-        // فتح المذكرات تلقائياً عند إضافة تدوينة جديدة
         document.getElementById('diaryList').style.display = "block";
         document.getElementById('toggleIcon').innerText = "▲";
         renderDiaries();
@@ -248,16 +260,14 @@
     function save() { localStorage.setItem('recoveryFullSet', JSON.stringify(data)); }
     
     function restartJourneyOnly() {
-        if(confirm("سيتم تصفير الأيام والزلات فقط. المذكرات ستبقى محفوظة. استمرار؟")) {
+        if(confirm("تصفير الأرقام؟")) {
             data.relapses = 0; data.start = ""; data.end = ""; data.startTimeMs = null; data.isRunning = false;
             save(); location.reload();
         }
     }
 
     function resetAll() {
-        if(confirm("سيتم حذف كل شيء نهائياً (بما في ذلك المذكرات). استمرار؟")) {
-            localStorage.clear(); location.reload();
-        }
+        if(confirm("حذف كل شيء؟")) { localStorage.clear(); location.reload(); }
     }
 
     function exportData() {
@@ -265,24 +275,21 @@
         const blob = new Blob([JSON.stringify(backup)], {type: 'application/json'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = `recovery_backup.json`;
-        a.click();
+        a.href = url; a.download = `recovery_backup.json`; a.click();
     }
 
     function importData() {
         const input = document.createElement('input');
         input.type = 'file'; input.accept = '.json';
         input.onchange = e => {
-            const file = e.target.files[0];
             const reader = new FileReader();
-            reader.onload = readerEvent => {
-                const content = JSON.parse(readerEvent.target.result);
+            reader.onload = ev => {
+                const content = JSON.parse(ev.target.result);
                 localStorage.setItem('recoveryFullSet', JSON.stringify(content.stats));
                 localStorage.setItem('diariesFullSet', JSON.stringify(content.diaries));
                 location.reload();
             }
-            reader.readAsText(file);
+            reader.readAsText(e.target.files[0]);
         }
         input.click();
     }
